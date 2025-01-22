@@ -1,0 +1,578 @@
+import 'package:flutter/material.dart';
+import 'package:lens_lite/models/ProfileResponse.dart';
+import 'package:lens_lite/models/conceptAiResponse/ClientBalanceResponse.dart';
+import 'package:lens_lite/models/conceptAiResponse/TreziServiceResponseModel.dart';
+import 'package:lens_lite/screens/AboutLensScreen.dart';
+import 'package:lens_lite/screens/CreateSessionScreen.dart';
+import 'package:lens_lite/screens/CustomerSupportScreen.dart';
+import 'package:lens_lite/screens/IntroScreen.dart';
+import 'package:lens_lite/screens/LoginScreen.dart';
+import 'package:lens_lite/screens/MySessionsReports.dart';
+import 'package:lens_lite/screens/MySessionsScreen.dart';
+import 'package:lens_lite/screens/MySubscriptionScreen.dart';
+import 'package:lens_lite/screens/MyWorkspaceScreen.dart';
+import 'package:lens_lite/screens/ProfileDetailsScreen.dart';
+import 'package:lens_lite/screens/conceptAI/AiHomeScreen.dart';
+import 'package:lens_lite/screens/conceptAI/ConceptAIScreen.dart';
+import 'package:lens_lite/utils/AppConstant.dart';
+import 'package:lens_lite/utils/AppPreferences.dart';
+import 'package:lens_lite/utils/CustomDialog.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:lens_lite/api/ApiManager.dart';
+import 'package:lens_lite/models/notification/FirebaseRequest.dart';
+import 'package:lens_lite/models/SignOutResponse.dart';
+
+class NewHomeScreen extends StatefulWidget {
+  @override
+  _NewHomeScreen createState() => _NewHomeScreen();
+}
+
+class _NewHomeScreen extends State<NewHomeScreen>{
+  String version='';
+  // List<String> stringList = ['Create New Session', 'My Sessions', 'My Reports', 'My Workspaces'];
+  // List<String> subStringList = ['Start a new session', 'View all your sessions here', 'View and share meeting reports', 'Downloaded and view workspaces'];
+
+  List<String> stringList = ['My\nSessions','Create\nNew Session','My\nWorkspaces', 'Concept\nAI'];
+  List<String> subStringList = [ 'View all your sessions here','Start a new session', 'View workspaces created', 'Visualize your imagination'];
+  List<String> iconsList = [ 'assets/newui/my_session_icon.png','assets/newui/create_session_icon.png', 'assets/newui/workspace_icon.png', 'assets/newui/concept_ai_icon.png'];
+
+
+  String token='';
+  String email='';
+  String firstName='';
+  String lastName= '';
+  bool isLogin = false;
+  bool _loading = false;
+
+  String totalPoints = '';
+  String icon= 'assets/bot.png';
+
+  late List<Widget> _screens = [];
+  int _selectedIndex = 0;
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeScreen();
+    setState(() {
+      icon =  'assets/bot.png';
+    });
+  }
+
+
+  void _initializeScreen() {
+    _screens = [
+      MySessionsScreen(),
+      CreateSessionScreen(
+        from: AppConstant.HOME,
+        sessionTitle: '',
+        startTime: '',
+        endTime: '',
+        workspaceId: '',
+        workspaceName: 'Choose Workspace',
+        owner: '',
+        descriptionController: '',
+        type: '',
+        emailController: '',
+        attendeeUsername: '',
+        attendeePermission: '',
+        attendeeOrdinal: 1,
+        meetingId: '',
+        listAttendee: [],
+      ),
+      MyWorkspaceScreen(isComingFromSpecificScreen: AppConstant.HOME),
+      AiHomeScreen(totalPoints: totalPoints),
+    ];
+
+    _getVersion(); // Assuming _getVersion is synchronous
+
+    WidgetsBinding.instance?.addPostFrameCallback((_) async {
+      try {
+        await _getPreferenceData();
+        await fetchData(); // Assuming fetchData is an async method
+        await fetchVendorData(); // Assuming fetchData is an async method
+
+        setState(() {
+          // Update state variables or UI if necessary
+        });
+      } catch (e) {
+        print('Initialization error: $e');
+        // Handle initialization error
+      }
+    });
+  }
+
+
+  Future<void> _getVersion() async {
+    try {
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      setState(() {
+        version = packageInfo.version;
+      });
+    } catch (e) {
+      print('Error getting package info: $e');
+    }
+  }
+
+  Future<void> _getPreferenceData() async{
+    firstName = AppPreferences.getString(AppConstant.FIRST_NAME) ?? "DefaultFirstName";
+    lastName = AppPreferences.getString(AppConstant.LAST_NAME) ?? "DefaultLastName";
+    email = AppPreferences.getString(AppConstant.EMAIL) ?? "DefaultEmail";
+    isLogin = AppPreferences.getBool(AppConstant.ISLOGIN) ?? false;
+
+    token = AppPreferences.getString(AppConstant.TOKEN) ?? "DefaultToken";
+
+
+    print('ISLOGIN: $isLogin');
+    if(isLogin){
+
+    }else{
+      // _logout(context);
+    }
+
+
+
+  }
+  Future<void> fetchData() async {
+    String token = AppPreferences.getString(AppConstant.TOKEN) ?? '';
+    String userId = AppPreferences.getString(AppConstant.USERID) ?? '';
+
+    ProfileResponse userProfileResponse = await ApiManager
+        .getUserProfileDetails(token, userId);
+
+    try {
+      if (userProfileResponse.firstName != null) {
+        print('First Name: ${userProfileResponse.firstName}');
+        print('lName Name: ${userProfileResponse.lastName}');
+        print('email Name: ${userProfileResponse.email}');
+
+        AppPreferences.saveString(AppConstant.FIRST_NAME, userProfileResponse.firstName ?? '');
+        AppPreferences.saveString(AppConstant.LAST_NAME, userProfileResponse.lastName ?? '');
+        AppPreferences.saveString(AppConstant.EMAIL, userProfileResponse.email ?? '');
+
+
+        setState(() {
+          firstName = userProfileResponse.firstName!;
+          lastName = userProfileResponse.lastName!;
+          email = userProfileResponse.email!;
+        });
+      } else {
+
+      }
+    } catch (e) {
+      print('An error occurred: $e');
+    }
+  }
+
+
+  Future<void> fetchVendorData() async {
+    String token = AppPreferences.getString(AppConstant.TOKEN) ?? '';
+
+    ClientBalanceResponse balanceResponse =
+    await ApiManager.getTotalClientPoints(token);
+
+    try {
+      if (balanceResponse != null) {
+        print('balancePoints : ${balanceResponse.balancePoints}');
+        print('total : ${balanceResponse.totalPoints}');
+        print('used point : ${balanceResponse.usedPoints}');
+
+        AppPreferences.saveString(AppConstant.TOTAL_POINTS, balanceResponse.balancePoints.toString());
+
+
+        setState(() {
+          if(balanceResponse.balancePoints!=null) {
+            totalPoints =
+                balanceResponse.balancePoints!.toString();
+          }else{
+            totalPoints = '0';
+          }
+          //totalPoints = balanceResponse.balancePoints!.toString();
+        });
+      } else {
+
+      }
+    } catch (e) {
+      print('An error occurred: $e');
+    }
+  }
+
+  void _navigateAndUpdateTitle() async {
+    final result = await Navigator.push(context,
+      // MaterialPageRoute(builder: (context) => ConceptAIScreen(totalAvailablePoints: totalPoints,)),);
+      MaterialPageRoute(builder: (context) => AiHomeScreen(totalPoints: totalPoints,)),);
+
+    // Update the title with the result
+    if (result != null) {
+      setState(() {
+        //totalPoints = result;
+        fetchVendorData();
+      });
+    }
+  }
+
+  Future<void> _showMyDialog() async {
+    // Open the dialog and wait for it to close
+    final result = await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      transitionDuration: Duration(milliseconds: 400),
+      pageBuilder: (BuildContext buildContext, Animation<double> animation, Animation<double> secondaryAnimation) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: FractionallySizedBox(
+            heightFactor: 0.5,
+            child: SlideTransition(
+              position: Tween(begin: Offset(0, -1), end: Offset.zero).animate(animation),
+              child: Padding(
+                padding: EdgeInsets.only(top: 100.0),
+                child: CustomDialog(token: token),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    // Handle the result when the dialog is dismissed
+    if (result != null) {
+      print('Dialog result: $result');
+      setState(() {
+        icon = 'assets/bot.png'; // Change the icon when dialog is dismissed
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+            iconTheme: IconThemeData(
+              color: Colors.white,
+            ),
+            backgroundColor: Color(0xFF2E3036),
+            title:
+            Row(
+              children: [
+                Align (
+                  alignment: Alignment.centerLeft,
+                  child :Text(
+                    'LensLite',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: AppConstant.Montserrat,
+                    ),
+                  ),
+                ),
+                Spacer(),
+                InkWell(
+                  onTap: () {
+                    // Add your code to be executed when the icon is clicked here
+                    print('Icon clicked');
+                    setState(() {
+                      icon =  'assets/collapse.png';
+                    });
+                    _showMyDialog();
+                  },
+                  child: Image.asset(
+                    icon,
+                    width: 36.0,
+                    height: 36.0,
+                  ),
+                )
+              ],
+
+            )
+        ),
+        body:
+            IndexedStack(
+              index: _selectedIndex,
+              children:
+              [
+            Container(
+            child: Column(
+                  children: <Widget>[
+                    Padding(
+                      padding: EdgeInsets.only(left: 10.0,top: 16.0), // Add padding from the left
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '${AppConstant.HELLO +' '+ firstName +','}',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: AppConstant.Montserrat,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(left: 10.0,top: 5.0), // Add padding from the left
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child:
+                        Text(
+                          AppConstant.LETS_COLLAB,
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: AppConstant.Montserrat
+                          ),
+                        ),
+                      ),
+                    ),
+                    // ),
+                    SizedBox(height: 10.0,),
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 10.0),
+                      padding: EdgeInsets.all(10.0),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.grey,
+                        ),
+                        borderRadius: BorderRadius.circular(5.0),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                totalPoints,
+                                style: TextStyle(
+                                  fontFamily: AppConstant.Montserrat,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  fontSize: 20.0,
+                                ),
+                              ),
+                              SizedBox(height: 5.0,),
+                              Text(
+                                AppConstant.TOTAL_AVAIABLE_POINTS,
+                                style: TextStyle(
+                                  fontFamily: AppConstant.Montserrat,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFFA2A3A5),
+                                  fontSize: 14.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Spacer(),
+                          Padding(
+                            padding: EdgeInsets.only(left: 10.0),
+                            child: Image.asset(
+                              'assets/newui/points.gif',
+                              width: 60,
+                              height: 60,
+                            ),
+                          ),
+
+                        ],
+                      ),
+                    ),
+
+                    Expanded(
+                      child: StaggeredGridView.countBuilder(
+                        padding: EdgeInsets.only(left: 10.0, right: 10.0, top: 10.0, bottom: 0),
+                        crossAxisCount: 2, // 2 cards per row
+                        mainAxisSpacing: 4.0,
+                        itemCount: 4,
+                        itemBuilder: (context, index) {
+                          return CardWidget(
+                            text: stringList[index],
+                            subtext: subStringList[index],
+                            icon: iconsList[index],
+                            onPressed: () async {
+                              print('Clicked on Card ${index}');
+                              _onItemTapped(index);
+                            },
+                          );
+                        },
+                        staggeredTileBuilder: (int index) =>
+                            StaggeredTile.count(1, 1.3),
+                      ),
+                    ),
+
+              ],
+            ),
+            ),
+
+                // MySessionsScreen(),
+                // CreateSessionScreen(
+                //   from: AppConstant.HOME,
+                //   sessionTitle: '',
+                //   startTime: '',
+                //   endTime: '',
+                //   workspaceId: '',
+                //   workspaceName: 'Choose Workspace',
+                //   owner: '',
+                //   descriptionController: '',
+                //   type: '',
+                //   emailController: '',
+                //   attendeeUsername: '',
+                //   attendeePermission: '',
+                //   attendeeOrdinal: 1,
+                //   meetingId: '',
+                //   listAttendee: [],
+                // ),
+                // MyWorkspaceScreen(isComingFromSpecificScreen: AppConstant.HOME),
+                // AiHomeScreen(totalPoints: totalPoints),
+
+              ],
+            ),
+
+
+    );
+  }
+
+  void _handleCardTap(int index) {
+    // You can manage navigation based on the index
+    switch (index) {
+      case 0:
+      // Example for MySessionsScreen
+      Navigator.pushNamed(context, ''
+          '/mySessionsScreen');
+
+        setState(() {
+          _selectedIndex = 1; // Change the index for the next screen
+        });
+        break;
+      case 1:
+      // Example for CreateSessionScreen
+        setState(() {
+          _selectedIndex = 2; // Change the index for the next screen
+        });
+        break;
+      case 2:
+      // Example for MyWorkspaceScreen
+        setState(() {
+          _selectedIndex = 3; // Change the index for the next screen
+        });
+        break;
+      case 3:
+      // Example for some other screen
+        setState(() {
+          _selectedIndex = 4; // Change the index for the next screen
+        });
+        break;
+    }
+  }
+
+}
+
+class CardWidget extends StatelessWidget {
+  final String text;
+  final String subtext;
+  final String icon;
+  final Function onPressed;
+
+  CardWidget({
+    required this.text,
+    required this.subtext,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        onPressed();
+      },
+      child: Card(
+        //color : Colors.black12,
+        color: Color(0xff232221),
+        elevation: 10,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.0),
+          side: BorderSide(
+            // color: Colors.white,  // Set the color of the border outline
+            color: Color(0xff353332),  // Set the color of the border outline
+            width: 1.0,  // Set the width of the border outline
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.only(left: 16.0,top: 20.0),
+              child : Align(
+                alignment: Alignment.bottomLeft,
+                child: Image.asset(
+                  icon,
+                  width: 45,
+                  height: 45,
+                ),
+              ),
+            ),
+            SizedBox(height: 30.0,),
+            Padding(
+              padding: EdgeInsets.only(left: 16.0,),
+              child : Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: AppConstant.Montserrat,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.only(left: 16.0,),
+              child :Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  subtext,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w300,
+                    fontFamily: AppConstant.Montserrat,
+                  ),
+                  softWrap: true,
+                  maxLines: 2,
+                ),
+              ),
+            ),
+            SizedBox(height: 10.0),
+            Container(
+              padding: EdgeInsets.only(left: 16.0,top: 10.0, bottom: 16.0),
+              child : Align(
+                alignment: Alignment.bottomLeft,
+                child: Image.asset('assets/enter_icon.png'),
+              ),
+            ),
+
+            SizedBox(height: 16.0,),
+
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+https://resumaker.ai/app/edit/8006508/
